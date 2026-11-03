@@ -1,0 +1,72 @@
+{
+ "json_format_version": [
+  1,
+  0
+ ],
+ "smartctl": {
+  "version": [
+   7,
+   5
+  ],
+  "pre_release": false,
+  "svn_revision": "5714",
+  "platform_info": "x86_64-linux-7.2.15-1-omarchy",
+  "build_info": "(local build)",
+  "argv": [
+   "smartctl",
+   "-j",
+   "-a",
+   "-d",
+   "scsi",
+   "/dev/sda"
+  ],
+  "exit_status": 4
+ },
+ "device": {
+  "name": "/dev/sda",
+  "info_name": "/dev/sda",
+  "type": "scsi",
+  "protocol": "SCSI"
+ },
+ "scsi_vendor": "SanDisk",
+ "scsi_product": "Portable SSD",
+ "model_name": "SanDisk Portable SSD",
+ "scsi_model_name": "SanDisk Portable SSD",
+ "scsi_revision": "6004",
+ "scsi_version": "SPC-4",
+ "user_capacity": {
+  "blocks": 1953525168,
+  "bytes": 1000204886016
+ },
+ "logical_block_size": 512,
+ "scsi_lb_provisioning": {
+  "name": "resource provisioned",
+  "value": 1,
+  "management_enabled": {
+   "name": "LBPME",
+   "value": -1
+  },
+  "read_zeros": {
+   "name": "LBPRZ",
+   "value": 0
+  }
+ },
+ "rotation_rate": 0,
+ "logical_unit_id": "REDACTED",
+ "serial_number": "REDACTED",
+ "device_type": {
+  "scsi_terminology": "Peripheral Device Type [PDT]",
+  "scsi_value": 0,
+  "name": "disk"
+ },
+ "smart_support": {
+  "available": false
+ },
+ "temperature": {
+  "current": 0,
+  "drive_trip": 0
+ },
+ "seagate_farm_log": {
+  "supported": false
+ }
+}

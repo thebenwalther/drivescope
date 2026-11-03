@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=DriveScope
+Comment=Real-world speed and health of external drives
+Exec=drivescope
+Icon=dev.drivescope.DriveScope
+Terminal=false
+Categories=System;Monitor;
+Keywords=disk;drive;usb;ssd;benchmark;speed;smart;

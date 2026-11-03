@@ -1,0 +1,4 @@
+#!/bin/sh
+# The system Python is required: GTK's bindings aren't installed for mise's Python.
+script=$(readlink -f "$0")
+cd "$(dirname "$script")/.." && PYTHONPATH="$PWD" exec /usr/bin/python3 -m drivescope.app "$@"

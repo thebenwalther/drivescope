@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD polkit Policy Configuration 1.0//EN"
+  "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!--
+  Optional. Lets the person at this computer run smartctl without a password, so
+  DriveScope can record temperature during benchmarks. smartctl can also start
+  self-tests or change SMART settings, but it can't read or write files on a drive.
+  To undo: sudo rm /usr/share/polkit-1/actions/dev.drivescope.smartctl.policy
+-->
+<policyconfig>
+  <action id="dev.drivescope.smartctl">
+    <description>Read drive health data for DriveScope</description>
+    <message>DriveScope wants to read this drive's health data</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/smartctl</annotate>
+  </action>
+</policyconfig>
