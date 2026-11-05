@@ -1,0 +1,5 @@
+#!/bin/sh
+# Live drive status for the bar panel. Standard library only, so it runs on the
+# system Python without any of the GTK app's packages.
+script=$(readlink -f "$0")
+PYTHONPATH="$(dirname "$script")/.." PYTHONDONTWRITEBYTECODE=1 exec /usr/bin/python3 -m drivescope.watch "$@"

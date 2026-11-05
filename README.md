@@ -24,13 +24,32 @@ Most disk tools give you one score. DriveScope shows what the drive itself is do
 
 **History.** Results saved per drive, side-by-side comparison, CSV and JSON export, and an alert when a drive falls over 20% below its usual speed at the same link speed.
 
+**Bar panel for Omarchy.** Each external drive's live speed and whether it's safe to unplug, one click away, with the speed on the bar during a transfer.
+
 ## Install
 
-On a new Arch or Omarchy machine:
+### Bar panel on Omarchy
 
 ```sh
-git clone git@github.com:thebenwalther/drivescope.git ~/Work/github.com/thebenwalther/drivescope
-cd ~/Work/github.com/thebenwalther/drivescope
+omarchy plugin add https://github.com/thebenwalther/drivescope --enable
+```
+
+The panel only reads `/proc`, `/sys` and `lsblk`, using the system Python's standard library, so it needs no packages or permissions. It can't change a drive: flushing, ejecting and benchmarks stay in the app. To turn off the speed on the bar, use the plugin's **Show speed on the bar** setting.
+
+To add the app as well, which also enables the panel's **Open DriveScope** button:
+
+```sh
+cd ~/.config/omarchy/plugins/io.github.thebenwalther.drivescope
+./install.sh
+```
+
+### App only
+
+On an Arch or Omarchy machine:
+
+```sh
+git clone https://github.com/thebenwalther/drivescope.git
+cd drivescope
 ./install.sh --with-temperature
 ```
 
@@ -43,6 +62,24 @@ The app runs from this folder, so keep the folder where it is. To update, run `g
 On other distributions, install those packages with your package manager first. `install.sh` tells you if any are missing.
 
 Saved results live in `~/.local/share/drivescope/`, not in this repo. To keep your history on a new machine, copy that folder across.
+
+## Remove
+
+Remove the bar panel:
+
+```sh
+omarchy plugin remove io.github.thebenwalther.drivescope
+```
+
+If you ran `install.sh`, remove what it added. Do this before the step above if the app runs from the plugin's folder:
+
+```sh
+rm -f ~/.local/bin/drivescope ~/.local/share/applications/dev.drivescope.DriveScope.desktop
+rm -f ~/.local/share/icons/hicolor/*/apps/dev.drivescope.DriveScope*.png
+sudo rm -f /usr/share/polkit-1/actions/dev.drivescope.smartctl.policy  # only if you used --with-temperature
+```
+
+Your saved results stay until you delete `~/.local/share/drivescope/`. The packages `install.sh` installed also stay, since other software may need them.
 
 ## Your data
 

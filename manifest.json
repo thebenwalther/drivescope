@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.thebenwalther.drivescope",
+  "name": "DriveScope",
+  "version": "0.1.0",
+  "author": "Ben Walther",
+  "license": "MIT",
+  "description": "Live speed and safe-to-unplug status of external drives, in the bar.",
+  "homepage": "https://github.com/thebenwalther/drivescope",
+  "kinds": ["bar-widget"],
+  "entryPoints": {
+    "barWidget": "plugin/Panel.qml"
+  },
+  "barWidget": {
+    "displayName": "DriveScope",
+    "description": "Live external drive speed, and whether it's safe to unplug.",
+    "category": "System",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "showSpeed": true
+    },
+    "schema": [
+      {
+        "key": "showSpeed",
+        "type": "boolean",
+        "label": "Show speed on the bar",
+        "description": "Show read and write speed next to the icon during a transfer.",
+        "defaultValue": true
+      }
+    ]
+  }
+}
