@@ -28,11 +28,11 @@
   "type": "scsi",
   "protocol": "SCSI"
  },
- "scsi_vendor": "SanDisk",
- "scsi_product": "Portable SSD",
- "model_name": "SanDisk Portable SSD",
- "scsi_model_name": "SanDisk Portable SSD",
- "scsi_revision": "6004",
+ "scsi_vendor": "Example",
+ "scsi_product": "External SSD",
+ "model_name": "Example External SSD",
+ "scsi_model_name": "Example External SSD",
+ "scsi_revision": "0001",
  "scsi_version": "SPC-4",
  "user_capacity": {
   "blocks": 1953525168,

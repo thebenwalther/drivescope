@@ -8,7 +8,7 @@ from unittest import mock
 from drivescope.core import benchmarks, fio, health, safety, store, verdict
 
 FIXTURES = Path(__file__).parent / "fixtures"
-TEST_DIR = "/run/media/bmw/Backup/.drivescope-test-" + "a" * 32
+TEST_DIR = "/run/media/user/Backup/.drivescope-test-" + "a" * 32
 
 
 def load(name):
@@ -51,7 +51,7 @@ class FioCommandTests(unittest.TestCase):
             fio.write_command(job, "io_uring")
 
     def test_write_command_refuses_path_outside_test_dir(self):
-        job = self.job(mode="write", path="/run/media/bmw/Backup/data.bin", size_bytes=1024)
+        job = self.job(mode="write", path="/run/media/user/Backup/data.bin", size_bytes=1024)
         with self.assertRaises(safety.UnsafeTarget):
             fio.write_command(job, "io_uring")
 
@@ -124,7 +124,7 @@ class HealthTests(unittest.TestCase):
         doc = load("smart_sntasmedia.json")
         self.assertTrue(health.is_believable(doc))
         r = health.parse_report(doc, "sntasmedia")
-        self.assertEqual(r.model, "WDC SN350E 1TB")
+        self.assertEqual(r.model, "Example NVMe 1TB")
         self.assertEqual(r.temperature_c, 32)
         self.assertEqual(r.wear_pct, 0)
         self.assertEqual(r.unsafe_shutdowns, 112)

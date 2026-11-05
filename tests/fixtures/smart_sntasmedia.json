@@ -28,14 +28,14 @@
   "type": "sntasmedia",
   "protocol": "NVMe"
  },
- "model_name": "WDC SN350E 1TB",
+ "model_name": "Example NVMe 1TB",
  "serial_number": "REDACTED",
- "firmware_version": "235030WD",
+ "firmware_version": "EXAMPLE1",
  "nvme_pci_vendor": {
-  "id": 5559,
-  "subsystem_id": 5559
+  "id": 0,
+  "subsystem_id": 0
  },
- "nvme_ieee_oui_identifier": 6980,
+ "nvme_ieee_oui_identifier": 0,
  "nvme_total_capacity": 1000204886016,
  "nvme_unallocated_capacity": 0,
  "nvme_controller_id": 0,

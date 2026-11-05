@@ -10,10 +10,10 @@ MOUNTINFO = """\
 22 1 0:30 /@ / rw,relatime shared:1 - btrfs /dev/mapper/omarchy_root rw,compress=zstd
 23 22 0:30 /@home /home rw,relatime shared:2 - btrfs /dev/mapper/omarchy_root rw,compress=zstd
 24 22 259:5 / /boot rw,relatime shared:3 - vfat /dev/nvme0n1p5 rw
-80 22 8:2 / /run/media/bmw/Install\\040macOS rw,nosuid shared:4 - hfsplus /dev/sda2 ro,umask=22
-81 22 8:17 / /run/media/bmw/Backup rw,nosuid shared:5 - ext4 /dev/sdb1 rw
-82 22 8:33 / /run/media/bmw/Locked ro,nosuid shared:6 - exfat /dev/sdc1 rw
-83 22 0:30 /@snap /run/media/bmw/Snap rw shared:7 - btrfs /dev/mapper/omarchy_root rw
+80 22 8:2 / /run/media/user/Install\\040macOS rw,nosuid shared:4 - hfsplus /dev/sda2 ro,umask=22
+81 22 8:17 / /run/media/user/Backup rw,nosuid shared:5 - ext4 /dev/sdb1 rw
+82 22 8:33 / /run/media/user/Locked ro,nosuid shared:6 - exfat /dev/sdc1 rw
+83 22 0:30 /@snap /run/media/user/Snap rw shared:7 - btrfs /dev/mapper/omarchy_root rw
 """
 
 
@@ -75,21 +75,21 @@ class MountTests(unittest.TestCase):
         self.m = mounts.parse_mountinfo(MOUNTINFO)
 
     def test_unescapes_spaces(self):
-        self.assertIsNotNone(mounts.mount_at("/run/media/bmw/Install macOS", self.m))
+        self.assertIsNotNone(mounts.mount_at("/run/media/user/Install macOS", self.m))
 
     def test_read_only_from_super_options(self):
-        self.assertTrue(mounts.mount_at("/run/media/bmw/Install macOS", self.m).read_only)
+        self.assertTrue(mounts.mount_at("/run/media/user/Install macOS", self.m).read_only)
 
     def test_read_only_from_mount_options(self):
-        self.assertTrue(mounts.mount_at("/run/media/bmw/Locked", self.m).read_only)
+        self.assertTrue(mounts.mount_at("/run/media/user/Locked", self.m).read_only)
 
     def test_longest_prefix_wins(self):
-        self.assertEqual(mounts.mount_containing("/run/media/bmw/Backup/a", self.m).source, "/dev/sdb1")
-        self.assertEqual(mounts.mount_containing("/run/media/bmw/Backupish", self.m).mountpoint, "/")
+        self.assertEqual(mounts.mount_containing("/run/media/user/Backup/a", self.m).source, "/dev/sdb1")
+        self.assertEqual(mounts.mount_containing("/run/media/user/Backupish", self.m).mountpoint, "/")
 
 
 class SafetyTests(unittest.TestCase):
-    TEST_DIR = "/run/media/bmw/Backup/.drivescope-test-" + "a" * 32
+    TEST_DIR = "/run/media/user/Backup/.drivescope-test-" + "a" * 32
 
     def setUp(self):
         self.m = mounts.parse_mountinfo(MOUNTINFO)
@@ -111,9 +111,9 @@ class SafetyTests(unittest.TestCase):
             self.approve("/dev/.drivescope-test-" + "a" * 32 + "/sda")
 
     def test_refuses_outside_test_dir(self):
-        for path in ("/run/media/bmw/Backup/data.bin",
-                     "/run/media/bmw/Backup/.drivescope-test-xyz/data.bin",
-                     "/run/media/bmw/Backup/.drivescope-test-" + "a" * 31 + "/d"):
+        for path in ("/run/media/user/Backup/data.bin",
+                     "/run/media/user/Backup/.drivescope-test-xyz/data.bin",
+                     "/run/media/user/Backup/.drivescope-test-" + "a" * 31 + "/d"):
             with self.subTest(path=path), self.assertRaises(safety.UnsafeTarget):
                 self.approve(path)
 
@@ -124,11 +124,11 @@ class SafetyTests(unittest.TestCase):
 
     def test_refuses_test_dir_nested_below_volume_root(self):
         with self.assertRaises(safety.UnsafeTarget):
-            self.approve("/run/media/bmw/Backup/sub/.drivescope-test-" + "a" * 32 + "/d")
+            self.approve("/run/media/user/Backup/sub/.drivescope-test-" + "a" * 32 + "/d")
 
     def test_refuses_read_only_volumes(self):
         for mp in ("Install macOS", "Locked"):
-            path = f"/run/media/bmw/{mp}/.drivescope-test-" + "a" * 32 + "/d"
+            path = f"/run/media/user/{mp}/.drivescope-test-" + "a" * 32 + "/d"
             with self.subTest(mp=mp), self.assertRaises(safety.UnsafeTarget):
                 self.approve(path)
 
@@ -139,12 +139,12 @@ class SafetyTests(unittest.TestCase):
                 self.approve(path)
 
     def test_refuses_other_mount_of_the_system_device(self):
-        reason = safety.write_block_reason("/run/media/bmw/Snap", self.m)
+        reason = safety.write_block_reason("/run/media/user/Snap", self.m)
         self.assertIn("system", reason)
 
     def test_create_test_dir_refuses_read_only(self):
         with self.assertRaises(safety.UnsafeTarget):
-            safety.create_test_dir("/run/media/bmw/Install macOS", self.m)
+            safety.create_test_dir("/run/media/user/Install macOS", self.m)
 
     def test_refuses_symlink_and_non_regular_targets(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -200,8 +200,8 @@ class SafetyTests(unittest.TestCase):
 
 class DeviceTests(unittest.TestCase):
     def link(self, **kw):
-        base = dict(speed_mbps=10000, version=" 3.20", manufacturer="SanDisk", product="Portable SSD",
-                    id_vendor="0781", id_product="55bb", driver="uas", max_power="896mA",
+        base = dict(speed_mbps=10000, version=" 3.20", manufacturer="Example", product="External SSD",
+                    id_vendor="ffff", id_product="0001", driver="uas", max_power="896mA",
                     root_hub_mbps=10000, through_hub=False)
         base.update(kw)
         return devices.UsbLink(**base)
