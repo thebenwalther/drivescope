@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import shlex
 import subprocess
 import threading
+from pathlib import Path
 
 import gi
 
@@ -15,7 +17,9 @@ from ..core import format as fmt, health, store
 from ..core.devices import Drive
 from .widgets import clear_group, on_ui, value_row
 
-SETUP_COMMAND = "sudo install -m 644 ~/Projects/drivescope/data/dev.drivescope.smartctl.policy /usr/share/polkit-1/actions/"
+# The app runs from its checkout, so the policy file sits beside the package.
+POLICY_FILE = Path(__file__).resolve().parents[2] / "data" / "dev.drivescope.smartctl.policy"
+SETUP_COMMAND = f"sudo install -m 644 {shlex.quote(str(POLICY_FILE))} /usr/share/polkit-1/actions/"
 
 
 def _known(value, formatter=str) -> str:

@@ -2,6 +2,8 @@
 
 Read jobs always pass --readonly. Write jobs can only be built for a path that
 safety.approve_write_path() accepts, so the check can't be skipped by a caller.
+That path reaches the test directory through a descriptor fio inherits, so
+nothing done to the directory's name during a run can redirect fio's writes.
 """
 
 from __future__ import annotations
@@ -215,6 +217,7 @@ def run(
     """
     process = subprocess.Popen(
         command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True,
+        pass_fds=safety.open_test_dir_fds(),
     )
     stderr_lines: list[str] = []
     reader = threading.Thread(
@@ -250,6 +253,8 @@ def run(
     finally:
         watchdog_done.set()
     reader.join(timeout=2)
+    process.stdout.close()
+    process.stderr.close()
 
     if cancelled():
         raise Cancelled()

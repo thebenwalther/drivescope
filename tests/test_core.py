@@ -1,7 +1,9 @@
 import json
 import os
+import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from drivescope.core import devices, mounts, safety, stats
@@ -88,55 +90,109 @@ class MountTests(unittest.TestCase):
         self.assertEqual(mounts.mount_containing("/run/media/user/Backupish", self.m).mountpoint, "/")
 
 
-class SafetyTests(unittest.TestCase):
-    TEST_DIR = "/run/media/user/Backup/.drivescope-test-" + "a" * 32
+class FakeVolume:
+    """A temporary folder standing in for a writable external volume."""
 
+    def __init__(self, mode=0o700):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.mountpoint = os.path.realpath(self._tmp.name)
+        os.chmod(self.mountpoint, mode)
+        self.mounts = self.mounts_with("rw")
+
+    def mounts_with(self, options):
+        return mounts.parse_mountinfo(MOUNTINFO + f"90 22 8:49 / {self.mountpoint} {options} - ext4 /dev/sdd1 rw\n")
+
+    def __enter__(self):
+        self._patch = mock.patch.object(safety, "read_mounts", return_value=self.mounts)
+        self._patch.start()
+        return self
+
+    def __exit__(self, *exc):
+        self._patch.stop()
+        self._tmp.cleanup()
+
+
+class SafetyTests(unittest.TestCase):
     def setUp(self):
         self.m = mounts.parse_mountinfo(MOUNTINFO)
 
-    def approve(self, path):
-        return safety.approve_write_path(path, self.m)
+    def test_accepts_a_file_in_an_open_test_dir(self):
+        with FakeVolume() as vol:
+            test_dir = safety.create_test_dir(vol.mountpoint)
+            try:
+                path = test_dir.file("data.bin")
+                self.assertEqual(safety.approve_write_path(path), path)
+                self.assertTrue(path.startswith("/proc/self/fd/"))
+            finally:
+                safety.remove_test_dir(test_dir)
 
-    def test_accepts_file_in_test_dir_on_writable_external(self):
-        path = f"{self.TEST_DIR}/data.bin"
-        self.assertEqual(self.approve(path), path)
+    def test_refuses_every_ordinary_path(self):
+        with FakeVolume() as vol:
+            test_dir = safety.create_test_dir(vol.mountpoint)
+            try:
+                for path in ("/dev/sda", "/dev/sdb1", "/dev/mapper/omarchy_root", "data.bin",
+                             os.path.join(test_dir.path, "data.bin"),  # its real name, not the descriptor
+                             os.path.join(vol.mountpoint, "data.bin"),
+                             f"/proc/self/fd/{test_dir.fd}/../data.bin",
+                             f"/proc/self/fd/{test_dir.fd}/sub/data.bin",
+                             f"/proc/{os.getpid()}/fd/{test_dir.fd}/data.bin"):
+                    with self.subTest(path=path), self.assertRaises(safety.UnsafeTarget):
+                        safety.approve_write_path(path)
+            finally:
+                safety.remove_test_dir(test_dir)
 
-    def test_refuses_raw_devices(self):
-        for path in ("/dev/sda", "/dev/sda2", "/dev/sdb1", "/dev/nvme0n1", "/dev/mapper/omarchy_root"):
-            with self.subTest(path=path), self.assertRaises(safety.UnsafeTarget):
-                self.approve(path)
+    def test_refuses_a_descriptor_that_isnt_an_open_test_dir(self):
+        with FakeVolume() as vol:
+            fd = os.open(vol.mountpoint, os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                with self.assertRaises(safety.UnsafeTarget):
+                    safety.approve_write_path(f"/proc/self/fd/{fd}/data.bin")
+            finally:
+                os.close(fd)
+            test_dir = safety.create_test_dir(vol.mountpoint)
+            path = test_dir.file("data.bin")
+            safety.remove_test_dir(test_dir)
+            with self.assertRaises(safety.UnsafeTarget):
+                safety.approve_write_path(path)  # closed, so the number means nothing now
 
-    def test_refuses_raw_device_dressed_as_test_dir(self):
-        with self.assertRaises(safety.UnsafeTarget):
-            self.approve("/dev/.drivescope-test-" + "a" * 32 + "/sda")
+    def test_refuses_unusual_file_names(self):
+        with FakeVolume() as vol:
+            test_dir = safety.create_test_dir(vol.mountpoint)
+            try:
+                for name in ("..", ".hidden", "a/b", "", "a:b"):
+                    with self.subTest(name=name), self.assertRaises(safety.UnsafeTarget):
+                        test_dir.file(name)
+            finally:
+                safety.remove_test_dir(test_dir)
 
-    def test_refuses_outside_test_dir(self):
-        for path in ("/run/media/user/Backup/data.bin",
-                     "/run/media/user/Backup/.drivescope-test-xyz/data.bin",
-                     "/run/media/user/Backup/.drivescope-test-" + "a" * 31 + "/d"):
-            with self.subTest(path=path), self.assertRaises(safety.UnsafeTarget):
-                self.approve(path)
+    def test_refuses_symlink_fifo_and_hard_link_targets(self):
+        with FakeVolume() as vol:
+            test_dir = safety.create_test_dir(vol.mountpoint)
+            try:
+                os.symlink("/dev/null", "link", dir_fd=test_dir.fd)
+                os.mkfifo("fifo", dir_fd=test_dir.fd)
+                open(os.path.join(test_dir.path, "one"), "w").close()
+                os.link("one", "two", src_dir_fd=test_dir.fd, dst_dir_fd=test_dir.fd)
+                for name in ("link", "fifo", "two"):
+                    with self.subTest(name=name), self.assertRaises(safety.UnsafeTarget):
+                        safety.approve_write_path(test_dir.file(name))
+            finally:
+                safety.remove_test_dir(test_dir)
 
-    def test_refuses_relative_and_traversal(self):
-        for path in ("data.bin", f"{self.TEST_DIR}/../data.bin"):
-            with self.subTest(path=path), self.assertRaises(safety.UnsafeTarget):
-                self.approve(path)
-
-    def test_refuses_test_dir_nested_below_volume_root(self):
-        with self.assertRaises(safety.UnsafeTarget):
-            self.approve("/run/media/user/Backup/sub/.drivescope-test-" + "a" * 32 + "/d")
-
-    def test_refuses_read_only_volumes(self):
-        for mp in ("Install macOS", "Locked"):
-            path = f"/run/media/user/{mp}/.drivescope-test-" + "a" * 32 + "/d"
-            with self.subTest(mp=mp), self.assertRaises(safety.UnsafeTarget):
-                self.approve(path)
+    def test_refuses_volume_that_became_read_only(self):
+        with FakeVolume() as vol:
+            test_dir = safety.create_test_dir(vol.mountpoint)
+            try:
+                with mock.patch.object(safety, "read_mounts", return_value=vol.mounts_with("ro")):
+                    with self.assertRaises(safety.UnsafeTarget):
+                        safety.approve_write_path(test_dir.file("data.bin"))
+            finally:
+                safety.remove_test_dir(test_dir)
 
     def test_refuses_system_volumes(self):
-        for mp in ("/home", "/boot"):
-            path = f"{mp}/.drivescope-test-" + "a" * 32 + "/d"
+        for mp in ("/", "/home", "/boot", "/run/media/user/Snap"):
             with self.subTest(mp=mp), self.assertRaises(safety.UnsafeTarget):
-                self.approve(path)
+                safety.create_test_dir(mp, self.m)
 
     def test_refuses_other_mount_of_the_system_device(self):
         reason = safety.write_block_reason("/run/media/user/Snap", self.m)
@@ -146,49 +202,87 @@ class SafetyTests(unittest.TestCase):
         with self.assertRaises(safety.UnsafeTarget):
             safety.create_test_dir("/run/media/user/Install macOS", self.m)
 
-    def test_refuses_symlink_and_non_regular_targets(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            test_dir = os.path.join(os.path.realpath(tmp), ".drivescope-test-" + "b" * 32)
-            os.mkdir(test_dir)
-            info = f"30 1 8:17 / {os.path.realpath(tmp)} rw - ext4 /dev/sdb1 rw\n"
-            m = mounts.parse_mountinfo(info)
+    def test_refuses_a_top_folder_other_accounts_can_rename_in(self):
+        for mode in (0o777, 0o775, 0o757):
+            with self.subTest(mode=oct(mode)), FakeVolume(mode) as vol:
+                with self.assertRaises(safety.UnsafeTarget):
+                    safety.create_test_dir(vol.mountpoint)
+                self.assertEqual(os.listdir(vol.mountpoint), [])
 
-            link = os.path.join(test_dir, "link")
-            os.symlink("/dev/null", link)
-            with self.assertRaises(safety.UnsafeTarget):
-                safety.approve_write_path(link, m)
+    def test_accepts_a_sticky_or_private_top_folder(self):
+        for mode in (0o1777, 0o755, 0o700):
+            with self.subTest(mode=oct(mode)), FakeVolume(mode) as vol:
+                safety.remove_test_dir(safety.create_test_dir(vol.mountpoint))
+                self.assertEqual(os.listdir(vol.mountpoint), [])
 
-            fifo = os.path.join(test_dir, "fifo")
-            os.mkfifo(fifo)
-            with self.assertRaises(safety.UnsafeTarget):
-                safety.approve_write_path(fifo, m)
+    def test_swapping_the_test_dir_cannot_redirect_a_write(self):
+        """The reported attack: after approval, the directory is renamed away and
+        replaced by one whose file is a symlink to something the user can write."""
+        from drivescope.core import fio
 
-            ok = os.path.join(test_dir, "data.bin")
-            self.assertEqual(safety.approve_write_path(ok, m), ok)
+        with FakeVolume() as vol, tempfile.TemporaryDirectory() as home:
+            victim = os.path.join(home, "victim")
+            Path(victim).write_text("precious")
+            test_dir = safety.create_test_dir(vol.mountpoint)
+            try:
+                path = safety.approve_write_path(test_dir.file("bench.bin"))
+                moved = os.path.join(vol.mountpoint, "moved")
+                os.rename(test_dir.path, moved)
+                os.mkdir(test_dir.path)
+                os.symlink(victim, os.path.join(test_dir.path, "bench.bin"))
 
-    def test_remove_only_removes_test_dirs(self):
+                # A stand-in for fio: a separate process that opens --filename itself.
+                fake_fio = ("import sys; open(sys.argv[1], 'w').write('benchmark'); "
+                            "print('{\"jobs\": [{\"write\": {}}]}')")
+                fio.run([sys.executable, "-c", fake_fio, path], "write")
+
+                self.assertEqual(Path(victim).read_text(), "precious")
+                self.assertEqual(Path(moved, "bench.bin").read_text(), "benchmark")
+                safety.remove_test_dir(test_dir)
+                self.assertEqual(os.listdir(moved), [])  # its own files are gone
+                self.assertTrue(os.path.islink(os.path.join(test_dir.path, "bench.bin")))  # the decoy is left alone
+                self.assertEqual(Path(victim).read_text(), "precious")
+            finally:
+                with safety._open_lock:
+                    still_open = test_dir.fd in safety._open_dirs
+                if still_open:
+                    safety.remove_test_dir(test_dir)
+
+    def test_remove_removes_contents_and_directory(self):
+        with FakeVolume() as vol:
+            test_dir = safety.create_test_dir(vol.mountpoint)
+            for name in ("a.bin", "b.bin"):
+                fd = os.open(safety.approve_write_path(test_dir.file(name)), os.O_WRONLY | os.O_CREAT, 0o600)
+                os.close(fd)
+            safety.remove_test_dir(test_dir)
+            self.assertEqual(os.listdir(vol.mountpoint), [])
+            self.assertNotIn(test_dir.fd, safety.open_test_dir_fds())
+
+    def test_remove_orphan_only_removes_test_dirs(self):
         with tempfile.TemporaryDirectory() as tmp:
             keep = os.path.join(tmp, "keep")
             os.mkdir(keep)
             with self.assertRaises(safety.UnsafeTarget):
-                safety.remove_test_dir(keep)
+                safety.remove_orphaned_test_dir(keep)
             self.assertTrue(os.path.isdir(keep))
 
             target = os.path.join(tmp, ".drivescope-test-" + "c" * 32)
             os.mkdir(target)
+            os.mkdir(os.path.join(target, "sub"))
             open(os.path.join(target, "f"), "w").close()
-            safety.remove_test_dir(target)
+            safety.remove_orphaned_test_dir(target)
             self.assertFalse(os.path.exists(target))
 
-    def test_remove_refuses_symlink_named_like_test_dir(self):
+    def test_remove_orphan_refuses_symlink_named_like_test_dir(self):
         with tempfile.TemporaryDirectory() as tmp:
             keep = os.path.join(tmp, "keep")
             os.mkdir(keep)
+            open(os.path.join(keep, "f"), "w").close()
             link = os.path.join(tmp, ".drivescope-test-" + "d" * 32)
             os.symlink(keep, link)
             with self.assertRaises(safety.UnsafeTarget):
-                safety.remove_test_dir(link)
-            self.assertTrue(os.path.isdir(keep))
+                safety.remove_orphaned_test_dir(link)
+            self.assertTrue(os.path.exists(os.path.join(keep, "f")))
 
     def test_finds_orphans(self):
         with tempfile.TemporaryDirectory() as tmp:

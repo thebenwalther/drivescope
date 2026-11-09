@@ -282,7 +282,7 @@ class Suite:
                 test_dir = safety.create_test_dir(self.mountpoint)
                 # Fresh random data, so reads can't be flattered by compression
                 # or by a drive treating never-written blocks as empty.
-                read_path = os.path.join(test_dir, "bench.bin")
+                read_path = test_dir.file("bench.bin")
 
             self._stages = self._stage + self._count_stages(read_path is not None, files) - (1 if self.mountpoint else 0)
 
@@ -387,14 +387,14 @@ class Suite:
         result = self._run_fio(test, fio.read_command(job, self._engine), "read")
         self.outcome.read_curve = result.intervals
 
-    def _sustained_write(self, test_dir: str) -> None:
+    def _sustained_write(self, test_dir: safety.TestDir) -> None:
         test = StandardTest("sustained-write", "Sustained write", "write", "1M", 8)
         self._begin(test.label)
         size = self._size_for(SUSTAINED_WRITE_MAX_BYTES)
         if size < GIB:
             self.outcome.skipped.append("Sustained write skipped: not enough free space.")
             return
-        path = os.path.join(test_dir, "sustained.bin")
+        path = test_dir.file("sustained.bin")
         job = Job(test.test_id, "write", "1M", 8, path, runtime_s=SUSTAINED_WRITE_MAX_S,
                   ramp_s=0, time_based=False, size_bytes=size)
         result = self._run_fio(test, fio.write_command(job, self._engine), "write", ramp_s=0)
@@ -416,7 +416,7 @@ class Suite:
             return False
         return True
 
-    def _small_write(self, test_dir: str) -> None:
+    def _small_write(self, test_dir: safety.TestDir) -> None:
         if not self._has_room(SMALL_WRITE_COUNT * SMALL_WRITE_BYTES, "Small-file write"):
             return
         self._begin(f"Writing up to {SMALL_WRITE_COUNT:,} small files")
@@ -428,7 +428,7 @@ class Suite:
             detail += f". Stopped at the {SMALL_WRITE_MAX_S} second limit."
         self._add_simple("small-write", "Small files, write", result.bps, detail)
 
-    def _copy(self, test_dir: str) -> None:
+    def _copy(self, test_dir: safety.TestDir) -> None:
         size = self._size_for(COPY_BYTES)
         if size < GIB:
             self.outcome.skipped.append("Real copy skipped: not enough free space.")
@@ -441,9 +441,9 @@ class Suite:
             f"Looked like {result.apparent_bps / 1e6:.0f} MB/s before the final flush. "
             f"Source reads at {result.source_bps / 1e6:.0f} MB/s.",
         )
-        os.unlink(os.path.join(test_dir, "copy-target.bin"))
+        os.unlink(test_dir.file("copy-target.bin"))
 
-    def _integrity(self, test_dir: str) -> None:
+    def _integrity(self, test_dir: safety.TestDir) -> None:
         full = self.options.integrity_full
         self._begin("Writing and verifying all free space" if full else "Writing and verifying data")
         usage = shutil.disk_usage(self.mountpoint)
@@ -457,7 +457,7 @@ class Suite:
         if size < GIB:
             self.outcome.skipped.append("Integrity check skipped: not enough free space.")
             return
-        path = os.path.join(test_dir, "integrity.bin")
+        path = test_dir.file("integrity.bin")
         # Long enough for a full pass over a large volume at USB 2 speed.
         job = Job("integrity", "write", "1M", 8, path, runtime_s=7 * 24 * 3600, ramp_s=0,
                   time_based=False, size_bytes=size, verify=True)

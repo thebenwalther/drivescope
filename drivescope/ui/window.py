@@ -175,7 +175,7 @@ class MainWindow(Adw.ApplicationWindow):
     def _clean_volume(self, mountpoint: str) -> None:
         for path in safety.find_orphaned_test_dirs(mountpoint):
             try:
-                safety.remove_test_dir(path)
+                safety.remove_orphaned_test_dir(path)
             except (OSError, safety.UnsafeTarget):
                 continue
             GLib.idle_add(self._show_once, f"Removed test files left behind on {mountpoint}.")

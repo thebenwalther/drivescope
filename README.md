@@ -94,6 +94,7 @@ The app runs from the folder you installed it from, so leave that folder in plac
 
 - **It never writes to a raw device.** Write tests only create files inside a temporary `.drivescope-test-<id>` folder on a volume mounted read-write. The folder is deleted when the run finishes or is cancelled, and on the next launch after a crash.
 - **System volumes are refused.** Write tests won't run on anything backing `/`, `/home` or `/boot`.
+- **Shared volumes are refused.** Write tests won't run if other accounts can rename things in the volume's top folder (writable by others and not sticky). During a run, writes go through a handle to the test folder held open from the moment it's created, so renaming or replacing the folder can't redirect them.
 - **Read-only volumes stay read-only.** You get read tests and monitoring only.
 - **Write tests ask first.** They show the amount of data before starting, because writing uses up a small part of an SSD's lifespan.
 - **The whole-drive scan can't write.** It uses a read-only file descriptor from UDisks2.

@@ -430,8 +430,13 @@ class SmallFileLimitTests(unittest.TestCase):
         from drivescope.core import filetests, safety
 
         with tempfile.TemporaryDirectory(dir=os.path.expanduser("~/.cache")) as mount:
-            with mock.patch.object(safety, "approve_write_path", side_effect=lambda p: p):
-                result = filetests.write_small_files(mount, count, 4096, lambda: False, max_seconds)
+            fd = os.open(mount, os.O_RDONLY | os.O_DIRECTORY)
+            test_dir = safety.TestDir(os.path.dirname(mount), os.path.basename(mount), fd, os.fstat(fd).st_dev)
+            try:
+                with mock.patch.object(safety, "approve_write_path", side_effect=lambda p: p):
+                    result = filetests.write_small_files(test_dir, count, 4096, lambda: False, max_seconds)
+            finally:
+                os.close(fd)
             return result, len(os.listdir(mount))
 
     def test_time_limit_ends_the_batch_but_keeps_the_minimum(self):

@@ -99,7 +99,7 @@ def read_small_files(paths: tuple[str, ...], cancelled: Callable[[], bool]) -> S
 
 
 def write_small_files(
-    test_dir: str, count: int, file_size: int, cancelled: Callable[[], bool], max_seconds: float | None = None,
+    test_dir: safety.TestDir, count: int, file_size: int, cancelled: Callable[[], bool], max_seconds: float | None = None,
 ) -> SmallFileResult:
     """Write a batch of files, timing both when they appear done and when they really are.
 
@@ -114,7 +114,7 @@ def write_small_files(
             raise Cancelled()
         if max_seconds is not None and i >= MIN_SMALL_FILES and time.perf_counter() - start >= max_seconds:
             break
-        path = safety.approve_write_path(os.path.join(test_dir, f"small-{i:06d}.bin"))
+        path = safety.approve_write_path(test_dir.file(f"small-{i:06d}.bin"))
         fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
         try:
             os.write(fd, block)
@@ -122,11 +122,7 @@ def write_small_files(
             os.close(fd)
         written += 1
     apparent = time.perf_counter() - start
-    fd = os.open(test_dir, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.syncfs(fd) if hasattr(os, "syncfs") else _syncfs(fd)
-    finally:
-        os.close(fd)
+    os.syncfs(test_dir.fd) if hasattr(os, "syncfs") else _syncfs(test_dir.fd)
     return SmallFileResult(written, written * file_size, apparent, time.perf_counter() - start)
 
 
@@ -152,7 +148,7 @@ def copy_source_path() -> Path:
 
 
 def real_copy(
-    test_dir: str,
+    test_dir: safety.TestDir,
     total_bytes: int,
     cancelled: Callable[[], bool],
     source: Path | None = None,
@@ -161,7 +157,7 @@ def real_copy(
     """Copy a real file from the internal drive through the page cache, as a file manager would."""
     source = source or copy_source_path()
     source.parent.mkdir(parents=True, exist_ok=True)
-    dest = safety.approve_write_path(os.path.join(test_dir, "copy-target.bin"))
+    dest = safety.approve_write_path(test_dir.file("copy-target.bin"))
     try:
         # Random data, so transparent compression on either side can't flatter the result.
         with open(source, "wb") as out:
